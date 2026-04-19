@@ -82,7 +82,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 const canvas = document.getElementById('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -133,19 +132,14 @@ const rim = new THREE.DirectionalLight(0x00ff88, 0.15);
 rim.position.set(0, 3, -15);
 scene.add(rim);
 
-// Loader
-const draco = new DRACOLoader();
-draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/draco/');
-
 const loader = new GLTFLoader();
-loader.setDRACOLoader(draco);
 
 const bar = document.getElementById('bar');
 const pct = document.getElementById('pct');
 const loading = document.getElementById('loading');
 
 loader.load(
-  'https://github.com/henrifraso/projeto-smith/releases/download/v1.0-office/police_office.glb',
+  'police_office.glb',
   (gltf) => {
     const model = gltf.scene;
 
