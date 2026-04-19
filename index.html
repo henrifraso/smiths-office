@@ -82,6 +82,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 const canvas = document.getElementById('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -132,6 +133,30 @@ const rim = new THREE.DirectionalLight(0x00ff88, 0.15);
 rim.position.set(0, 3, -15);
 scene.add(rim);
 
+// Modo dia/noite baseado no horário real
+const DAY   = { sky: 0x87ceeb, fog: 0x87ceeb, ambient: 1.8,  sun: 1.2,  sunColor: 0xfff5e0, fill: 1.2, rim: 0.4 };
+const NIGHT = { sky: 0x05051a, fog: 0x05051a, ambient: 0.12, sun: 0.35, sunColor: 0xc0d8ff, fill: 0.08, rim: 0.0  };
+
+function isNight() {
+  const h = new Date().getHours();
+  return h >= 18 || h < 6;
+}
+
+function applyMode(mode) {
+  scene.background.setHex(mode.sky);
+  scene.fog.color.setHex(mode.fog);
+  ambient.intensity = mode.ambient;
+  sun.intensity = mode.sun;
+  sun.color.setHex(mode.sunColor);
+  fill.intensity = mode.fill;
+  rim.intensity = mode.rim;
+}
+
+applyMode(isNight() ? NIGHT : DAY);
+
+// Verifica a cada minuto se mudou de período
+setInterval(() => applyMode(isNight() ? NIGHT : DAY), 60000);
+
 const loader = new GLTFLoader();
 
 const bar = document.getElementById('bar');
@@ -166,6 +191,73 @@ loader.load(
     // Posicionar chão na base do modelo
     const scaledBox = new THREE.Box3().setFromObject(model);
     floor.position.y = scaledBox.min.y + 0.01;
+    const floorY = scaledBox.min.y;
+    const totalH = scaledBox.max.y - floorY;
+
+    // Raycasting grid: detectar cadeiras por hits na altura de assento
+    const raycaster = new THREE.Raycaster();
+    const seatMin = floorY + totalH * 0.09;
+    const seatMax = floorY + totalH * 0.22;
+    const meshes = [];
+    model.traverse(n => { if (n.isMesh) meshes.push(n); });
+
+    const gridStep = 0.18;
+    const candidates = [];
+    const rayOrigin = new THREE.Vector3();
+    const rayDir = new THREE.Vector3(0, -1, 0);
+
+    for (let x = scaledBox.min.x; x <= scaledBox.max.x; x += gridStep) {
+      for (let z = scaledBox.min.z; z <= scaledBox.max.z; z += gridStep) {
+        rayOrigin.set(x, scaledBox.max.y + 0.1, z);
+        raycaster.set(rayOrigin, rayDir);
+        const hits = raycaster.intersectObjects(meshes, false);
+        for (const hit of hits) {
+          if (hit.point.y >= seatMin && hit.point.y <= seatMax) {
+            candidates.push(hit.point.clone());
+            break;
+          }
+        }
+      }
+    }
+
+    // Remover duplicatas próximas (raio de 0.22)
+    const seats = [];
+    for (const c of candidates) {
+      if (!seats.some(s => s.distanceTo(c) < 0.35)) seats.push(c);
+    }
+    console.log('Seats detectados:', seats.length);
+
+    // Personagens geométricos low-poly
+    const unit = totalH * 0.10;
+    const skinColors = [0xf5cba7, 0xd4a574, 0xc68642, 0xe8b89a];
+    const shirtColors = [0x2c5282, 0x744210, 0x276749, 0x702459, 0x2d3748];
+
+    function createCharacter(pos) {
+      const g = new THREE.Group();
+      const skin = new THREE.MeshStandardMaterial({ color: skinColors[Math.floor(Math.random()*4)], roughness: 0.8 });
+      const shirt = new THREE.MeshStandardMaterial({ color: shirtColors[Math.floor(Math.random()*5)], roughness: 0.8 });
+      const pants = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.9 });
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(unit*1.2, unit*1.4, unit*0.7), shirt);
+      torso.position.y = unit * 1.2; torso.castShadow = true; g.add(torso);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(unit*0.9, unit*0.9, unit*0.9), skin);
+      head.position.y = unit * 2.3; head.castShadow = true; g.add(head);
+
+      [-0.35, 0.35].forEach(side => {
+        const thigh = new THREE.Mesh(new THREE.BoxGeometry(unit*0.45, unit*0.45, unit*0.9), pants);
+        thigh.position.set(unit*side, unit*0.35, unit*0.4); thigh.castShadow = true; g.add(thigh);
+        const shin = new THREE.Mesh(new THREE.BoxGeometry(unit*0.4, unit*0.85, unit*0.4), pants);
+        shin.position.set(unit*side, -unit*0.15, unit*1.0); shin.castShadow = true; g.add(shin);
+      });
+
+      g.position.copy(pos);
+      g.rotation.y = Math.random() * Math.PI * 2;
+      scene.add(g);
+    }
+
+    seats.forEach(s => createCharacter(s));
+    console.log('Personagens criados:', seats.length);
 
     // Ajustar câmera para o modelo
     const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
