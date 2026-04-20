@@ -2,73 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Smiths Office</title>
+  <title>Earth Cartoon Test</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0a0f; overflow: hidden; font-family: monospace; }
-    #canvas { display: block; width: 100vw; height: 100vh; }
-
-    #hud {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      color: #00ff88;
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-shadow: 0 0 8px #00ff8880;
-      pointer-events: none;
-    }
-    #hud .title { font-size: 14px; font-weight: bold; margin-bottom: 6px; }
-    #hud .sub { color: #ffffff44; }
-
-    #loading {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #0a0a0f;
-      color: #00ff88;
-      font-family: monospace;
-      gap: 16px;
-      z-index: 100;
-    }
-    #loading .logo { font-size: 20px; letter-spacing: 0.2em; }
-    #loading .bar-wrap { width: 240px; height: 2px; background: #ffffff18; }
-    #loading .bar { height: 100%; background: #00ff88; width: 0%; transition: width 0.2s; }
-    #loading .pct { font-size: 11px; color: #ffffff55; margin-top: 6px; }
-
-    #controls-hint {
-      position: fixed;
-      bottom: 16px;
-      right: 16px;
-      color: #ffffff33;
-      font-size: 10px;
-      text-align: right;
-      pointer-events: none;
-    }
+    body { background: #0a0a1a; overflow: hidden; font-family: monospace; }
+    canvas { display: block; width: 100vw; height: 100vh; }
   </style>
 </head>
 <body>
-
-<div id="loading">
-  <div class="logo">SMITHS CORPORATION</div>
-  <div class="bar-wrap"><div class="bar" id="bar"></div></div>
-  <div class="pct" id="pct">carregando modelo...</div>
+<canvas id="c"></canvas>
+<div id="btns">
 </div>
-
-<canvas id="canvas"></canvas>
-
-<div id="hud">
-  <div class="title">SMITHS CORPORATION</div>
-  <div class="sub">Smiths HQ · Alpha</div>
-</div>
-
-<div id="controls-hint">
-  arrastar · scroll zoom · clique direito pan
-</div>
-
 <script type="importmap">
 {
   "imports": {
@@ -77,248 +21,65 @@
   }
 }
 </script>
-
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-const canvas = document.getElementById('canvas');
+const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.1;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(12, 10, 14);
+camera.position.set(0, 0, 4);
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.dampingFactor = 0.07;
-controls.minDistance = 2;
-controls.maxDistance = 80;
-controls.maxPolarAngle = Math.PI / 2 - 0.05;
-controls.target.set(0, 1, 0);
+controls.autoRotate = false;
 
-// Iluminação
-const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambient);
-
-const sun = new THREE.DirectionalLight(0xfff5e0, 2.0);
-sun.position.set(10, 20, 10);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.near = 0.5;
-sun.shadow.camera.far = 100;
-sun.shadow.camera.left = -20;
-sun.shadow.camera.right = 20;
-sun.shadow.camera.top = 20;
-sun.shadow.camera.bottom = -20;
+const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+sun.position.set(5, 3, 5);
 scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 
-const fill = new THREE.DirectionalLight(0xa0c8ff, 0.5);
-fill.position.set(-8, 5, -5);
-scene.add(fill);
-
-const rim = new THREE.DirectionalLight(0x00ff88, 0.15);
-rim.position.set(0, 3, -15);
-scene.add(rim);
-
-// Modo dia/noite baseado no horário real
-const DAY   = { sky: 0x87ceeb, fog: 0x87ceeb, ambient: 1.8,  sun: 1.2,  sunColor: 0xfff5e0, fill: 1.2, rim: 0.4 };
-const NIGHT = { sky: 0x05051a, fog: 0x05051a, ambient: 0.12, sun: 0.35, sunColor: 0xc0d8ff, fill: 0.08, rim: 0.0  };
-
-function isNight() {
-  const h = new Date().getHours();
-  return h >= 18 || h < 6;
-}
-
-function applyMode(mode) {
-  scene.background.setHex(mode.sky);
-  scene.fog.color.setHex(mode.fog);
-  ambient.intensity = mode.ambient;
-  sun.intensity = mode.sun;
-  sun.color.setHex(mode.sunColor);
-  fill.intensity = mode.fill;
-  rim.intensity = mode.rim;
-}
-
-applyMode(isNight() ? NIGHT : DAY);
-
-// Verifica a cada minuto se mudou de período
-setInterval(() => applyMode(isNight() ? NIGHT : DAY), 60000);
-
+let current = null;
+let mixer = null;
+const clock = new THREE.Clock();
 const loader = new GLTFLoader();
 
-const bar = document.getElementById('bar');
-const pct = document.getElementById('pct');
-const loading = document.getElementById('loading');
+window.loadModel = function(file, btn) {
 
-loader.load(
-  'police_office.glb',
-  (gltf) => {
+  if (current) { scene.remove(current); current = null; }
+  if (mixer) { mixer.stopAllAction(); mixer = null; }
+  loader.load(file, (gltf) => {
     const model = gltf.scene;
-
-    // Sombras em tudo
-    model.traverse((node) => {
-      if (node.isMesh) {
-        node.castShadow = true;
-        node.receiveShadow = true;
-      }
-    });
-
-    // Centralizar e escalar
     const box = new THREE.Box3().setFromObject(model);
-    const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = 10 / maxDim;
-
+    const scale = 2.0 / Math.max(size.x, size.y, size.z);
     model.scale.setScalar(scale);
+    const center = box.getCenter(new THREE.Vector3());
     model.position.sub(center.multiplyScalar(scale));
-
+    model.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; n.frustumCulled = false; } });
     scene.add(model);
-
-    // Posicionar chão na base do modelo
-    const scaledBox = new THREE.Box3().setFromObject(model);
-    floor.position.y = scaledBox.min.y + 0.01;
-    const floorY = scaledBox.min.y;
-    const totalH = scaledBox.max.y - floorY;
-
-    // Raycasting grid: detectar cadeiras por hits na altura de assento
-    const raycaster = new THREE.Raycaster();
-    const seatMin = floorY + totalH * 0.09;
-    const seatMax = floorY + totalH * 0.22;
-    const meshes = [];
-    model.traverse(n => { if (n.isMesh) meshes.push(n); });
-
-    const gridStep = 0.18;
-    const candidates = [];
-    const rayOrigin = new THREE.Vector3();
-    const rayDir = new THREE.Vector3(0, -1, 0);
-
-    for (let x = scaledBox.min.x; x <= scaledBox.max.x; x += gridStep) {
-      for (let z = scaledBox.min.z; z <= scaledBox.max.z; z += gridStep) {
-        rayOrigin.set(x, scaledBox.max.y + 0.1, z);
-        raycaster.set(rayOrigin, rayDir);
-        const hits = raycaster.intersectObjects(meshes, false);
-        for (const hit of hits) {
-          if (hit.point.y >= seatMin && hit.point.y <= seatMax) {
-            candidates.push(hit.point.clone());
-            break;
-          }
-        }
-      }
+    current = model;
+    // Tocar todas as animações do GLB
+    if (gltf.animations && gltf.animations.length > 0) {
+      mixer = new THREE.AnimationMixer(model);
+      gltf.animations.forEach(clip => mixer.clipAction(clip).play());
+      console.log('Animações:', gltf.animations.map(a => a.name));
     }
+  }, undefined, e => console.error(e));
+};
 
-    // Remover duplicatas próximas (raio de 0.22)
-    const seats = [];
-    for (const c of candidates) {
-      if (!seats.some(s => s.distanceTo(c) < 0.35)) seats.push(c);
-    }
-    console.log('Seats detectados:', seats.length);
-
-    // Personagens geométricos low-poly
-    const unit = totalH * 0.10;
-    const skinColors = [0xf5cba7, 0xd4a574, 0xc68642, 0xe8b89a];
-    const shirtColors = [0x2c5282, 0x744210, 0x276749, 0x702459, 0x2d3748];
-
-    function createCharacter(pos) {
-      const g = new THREE.Group();
-      const skin = new THREE.MeshStandardMaterial({ color: skinColors[Math.floor(Math.random()*4)], roughness: 0.8 });
-      const shirt = new THREE.MeshStandardMaterial({ color: shirtColors[Math.floor(Math.random()*5)], roughness: 0.8 });
-      const pants = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.9 });
-
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(unit*1.2, unit*1.4, unit*0.7), shirt);
-      torso.position.y = unit * 1.2; torso.castShadow = true; g.add(torso);
-
-      const head = new THREE.Mesh(new THREE.BoxGeometry(unit*0.9, unit*0.9, unit*0.9), skin);
-      head.position.y = unit * 2.3; head.castShadow = true; g.add(head);
-
-      [-0.35, 0.35].forEach(side => {
-        const thigh = new THREE.Mesh(new THREE.BoxGeometry(unit*0.45, unit*0.45, unit*0.9), pants);
-        thigh.position.set(unit*side, unit*0.35, unit*0.4); thigh.castShadow = true; g.add(thigh);
-        const shin = new THREE.Mesh(new THREE.BoxGeometry(unit*0.4, unit*0.85, unit*0.4), pants);
-        shin.position.set(unit*side, -unit*0.15, unit*1.0); shin.castShadow = true; g.add(shin);
-      });
-
-      g.position.copy(pos);
-      g.rotation.y = Math.random() * Math.PI * 2;
-      scene.add(g);
-    }
-
-    seats.forEach(s => createCharacter(s));
-    console.log('Personagens criados:', seats.length);
-
-    // Ajustar câmera para o modelo
-    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-    const scaledSize = scaledBox.getSize(new THREE.Vector3());
-    const dist = Math.max(scaledSize.x, scaledSize.z) * 1.4;
-
-    controls.target.copy(scaledCenter);
-    camera.position.set(
-      scaledCenter.x + dist,
-      scaledCenter.y + dist * 0.6,
-      scaledCenter.z + dist
-    );
-    controls.update();
-
-    loading.style.display = 'none';
-  },
-  (progress) => {
-    if (progress.total > 0) {
-      const p = Math.round((progress.loaded / progress.total) * 100);
-      bar.style.width = p + '%';
-      pct.textContent = p + '% carregado';
-    }
-  },
-  (err) => {
-    pct.textContent = 'erro ao carregar: ' + err.message;
-    console.error(err);
-  }
-);
-
-
-// Chão de concreto
-const floorCanvas = document.createElement('canvas');
-floorCanvas.width = floorCanvas.height = 512;
-const ctx = floorCanvas.getContext('2d');
-ctx.fillStyle = '#7a7a78';
-ctx.fillRect(0, 0, 512, 512);
-for (let i = 0; i < 18000; i++) {
-  const x = Math.random() * 512;
-  const y = Math.random() * 512;
-  const v = Math.floor(Math.random() * 40 - 20);
-  const c = 122 + v;
-  ctx.fillStyle = `rgba(${c},${c},${c-2},0.18)`;
-  ctx.fillRect(x, y, Math.random() * 3 + 1, Math.random() * 3 + 1);
-}
-// linhas de juntas
-ctx.strokeStyle = 'rgba(50,50,50,0.25)';
-ctx.lineWidth = 1;
-for (let i = 0; i <= 4; i++) {
-  ctx.beginPath(); ctx.moveTo(i*128, 0); ctx.lineTo(i*128, 512); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, i*128); ctx.lineTo(512, i*128); ctx.stroke();
-}
-const floorTex = new THREE.CanvasTexture(floorCanvas);
-floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
-floorTex.repeat.set(6, 6);
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
-  new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9, metalness: 0.0 })
-);
-floor.rotation.x = -Math.PI / 2;
-floor.receiveShadow = true;
-scene.add(floor);
+loadModel('earth_cartoon.glb', {classList:{remove:()=>{},add:()=>{}}});
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -328,6 +89,8 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (mixer) mixer.update(delta);
   controls.update();
   renderer.render(scene, camera);
 }
